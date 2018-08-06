@@ -35,7 +35,6 @@ void NthGraph::initializeNodes()
     nodes.push_back(Point<int>(getWidth() - getWidth()/8, getHeight() - getHeight()/2));
     quadPaths.add(new Path());
     nodes.push_back(Point<int>(getWidth(), 0));
-    //quadPaths.add(new Path());
     
     multipointBezierCurve();
 }
@@ -138,10 +137,7 @@ void NthGraph::mouseDoubleClick(const MouseEvent& e)
     {
         //erase the node/path and repaint
         nodes.erase(nodes.begin() + draggingNodeNum);
-//        if(draggingNodeNum == 1)
-//        {
-//            quadPaths[0]->clear();
-//        }
+
         quadPaths.remove(draggingNodeNum);
         
         runPathing = true;
@@ -279,7 +275,6 @@ void NthGraph::multipointBezierCurve()
     
     //the start and end of most curves is the midpoint between 2 controle nodes
     float midx, midy;
-    int iBump;
     
     //this represents the path being calculated
     int i;
@@ -297,9 +292,7 @@ void NthGraph::multipointBezierCurve()
     if((nodes.size() == 6 && (draggingNodeNum == 3 || draggingNodeNum == 2 ))|| (nodes.size() == 7 && draggingNodeNum == 3) || (nodes.size() == 5 || nodes.size() == 4))
     {
         //this first one is for when to entire curve needs to be calcuated
-        //quadPaths[0]->clear();
         i = 1;
-        iBump = 0;
         midy = nodes[0].y;
         midx = nodes[0].x;
         end = int(quadPaths.size()) - 2;
@@ -310,7 +303,6 @@ void NthGraph::multipointBezierCurve()
     {
         //if neither the first or last three paths need to be calculated
         i = draggingNodeNum - 1;
-        iBump = 0;
         midx = float(nodes[i-1].x + nodes[i].x)/2.f;
         midy = float(nodes[i-1].y + nodes[i].y)/2.f;
         end = draggingNodeNum + 1;
@@ -323,7 +315,6 @@ void NthGraph::multipointBezierCurve()
         //quadPaths[0]->clear();
         removepath0 = true;
         i = 1;
-        iBump = 0;
         midx = nodes[0].x;
         midy = nodes[0].y;
         end = draggingNodeNum + 1;
@@ -333,7 +324,6 @@ void NthGraph::multipointBezierCurve()
     {
         //if any of the last three nodes need to be calculated
         i = draggingNodeNum - 1;
-        iBump = 0;
         midx = float(nodes[i-1].x + nodes[i].x)/2.f;
         midy = float(nodes[i-1].y + nodes[i].y)/2.f;
         end = int(quadPaths.size()) - 2;
@@ -343,7 +333,6 @@ void NthGraph::multipointBezierCurve()
     {
         //this is just for safty, should never run
         i = 1;
-        iBump = 0;
         midy = nodes[0].y;
         midx = nodes[0].x;
         end = int(quadPaths.size()) - 2;
@@ -357,10 +346,10 @@ void NthGraph::multipointBezierCurve()
         quadPaths[i]->clear();
         quadPaths[i]->startNewSubPath(midx, midy);
         
-        midx = float(nodes[i+iBump].x + nodes[i+iBump+1].x)/2.f;
-        midy = float(nodes[i+iBump].y + nodes[i+iBump+1].y)/2.f;
+        midx = float(nodes[i].x + nodes[i+1].x)/2.f;
+        midy = float(nodes[i].y + nodes[i+1].y)/2.f;
         
-        quadPaths[i]->quadraticTo(float(nodes[i+iBump].x), float(nodes[i+iBump].y), midx, midy);
+        quadPaths[i]->quadraticTo(float(nodes[i].x), float(nodes[i].y), midx, midy);
     }
     
     //special calculation if the last path needs to be calculated

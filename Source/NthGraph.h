@@ -71,7 +71,6 @@ private:
     //path for copying and sampling 
     Path path;
     
-    
     //required to draw a path without closing it, must be initialized
     PathStrokeType pathStroke;
     
