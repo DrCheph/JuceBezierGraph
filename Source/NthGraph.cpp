@@ -14,6 +14,7 @@
 //==============================================================================
 NthGraph::NthGraph() : pathStroke(3.f, PathStrokeType::curved, PathStrokeType::butt)
 {
+    startTimer(40);
 }
 
 NthGraph::~NthGraph()
@@ -26,10 +27,17 @@ void NthGraph::initializeNodes()
     //because getWidth and getHight won't work untill after construction
     
     nodes.push_back(Point<int>(0,getHeight()));
+    quadPaths.add(new Path());
     nodes.push_back(Point<int>(getWidth() - getWidth()/1.5, getHeight() - getHeight()/6));
+    quadPaths.add(new Path());
     nodes.push_back(Point<int>(getWidth() - getWidth()/2, getHeight() - getHeight()/1.5));
-    nodes.push_back(Point<int>(getWidth() - getWidth()/6, getHeight() - getHeight()/2));
+    quadPaths.add(new Path());
+    nodes.push_back(Point<int>(getWidth() - getWidth()/8, getHeight() - getHeight()/2));
+    quadPaths.add(new Path());
     nodes.push_back(Point<int>(getWidth(), 0));
+    //quadPaths.add(new Path());
+    
+    multipointBezierCurve();
 }
 void NthGraph::mouseDown(const MouseEvent& e)
 {
@@ -56,21 +64,25 @@ void NthGraph::mouseDown(const MouseEvent& e)
         }
 
     }
-    
     //create an iterator and set it to the begining of the nodes vector
     std::vector<Point<int>>::iterator inserterIt;
     inserterIt = nodes.begin();
     
-    //insert a new vector at position n
+    //insert a new node/path at position n
     nodes.insert(inserterIt+n, e.getPosition());
+    
+    //if(n == 1)
+    quadPaths.insert(n, new Path());
 
+    runPathing = true;
     //repaint the graph
     repaint();
     
 }
 void NthGraph::mouseDrag(const MouseEvent& e)
 {
-
+    //dragg a node
+    
    //make a point
     Point<int> p1(e.getPosition());
         
@@ -104,8 +116,18 @@ void NthGraph::mouseDrag(const MouseEvent& e)
     //assing the node being dragged to the mouse position
     nodes[draggingNodeNum] = p1;
     
-    //repaint the graph
-    repaint();
+    if(frame)
+    {
+        runPathing = true;
+        
+        //repaint the graph
+        repaint();
+        frame = false;
+    }
+}
+void NthGraph::timerCallback()
+{
+    frame = true;
 }
 void NthGraph::mouseDoubleClick(const MouseEvent& e)
 {
@@ -114,20 +136,28 @@ void NthGraph::mouseDoubleClick(const MouseEvent& e)
     //check to see if the the node is not the first or last node and the total number of nodes at least 4
     if(nodes.size() > 4 && draggingNodeNum != 0 && draggingNodeNum != nodes.size() - 1)
     {
-        //erase the node and repaint
+        //erase the node/path and repaint
         nodes.erase(nodes.begin() + draggingNodeNum);
+//        if(draggingNodeNum == 1)
+//        {
+//            quadPaths[0]->clear();
+//        }
+        quadPaths.remove(draggingNodeNum);
+        
+        runPathing = true;
         repaint();
     }
     
 }
 void NthGraph::paint(Graphics& g)
 {
+    
 
     //one time update to give the nodes some positon on start
     if(update)
     {
         initializeNodes();
-        update = false;
+        //update = false;
     }
     
     //draw the background of the graph white
@@ -156,45 +186,75 @@ void NthGraph::paint(Graphics& g)
     //draw our multipoint line
     //==============================================================================
     g.setColour (Colours::black);
-    
+
+    //one run update to set up
+    if(update)
+    {
+        quadPaths.ensureStorageAllocated(100);
+        update = false;
+    }
     
     //runn our multipoint Bezier Curve drawing function
-    multipointBezierCurve(nodes, path);
+    if(runPathing)
+    {
+        multipointBezierCurve();
+        runPathing = false;
+    }
+    
+    //make a copy of our path then draw it
+    for(int i = 1; i < quadPaths.size(); i++)
+    {
+        //change the colour for one path for testing purposes
+        if(i == 2 && quadPaths.size() > 3)
+        {
+             g.setColour (Colours::red);
+        }
+        else
+        {
+             g.setColour (Colours::grey);
+        }
+        
+        Path pathCopy(*quadPaths[i]);
+        
+        pathCopy.lineTo(quadPaths[i]->getBounds().getRight(), 0);
+        pathCopy.lineTo(quadPaths[i]->getBounds().getX(), 0);
+        pathCopy.closeSubPath();
+        
+        path.addPath(pathCopy);
+        
+        g.strokePath(*quadPaths[i], pathStroke);
+        
+        
+    }
+
     
     //take a little break to extract data
     //==============================================================================
     
-    //in order to extract the x and y information out of our cubic line first a closed path must be made
-    
-    //coppy the original path
-    Path pathCopy(path);
-    
-    //close the path by going to the top right, then top left then back to the start
-    pathCopy.lineTo(float(getWidth()), 0);
-    pathCopy.lineTo(0, 0);
-    pathCopy.closeSubPath();
-    
     //make a line to measure against an axis
     Line<float> line;
-    
+
     //set the line at some x position greater than 0 and less than getWidth() then draw it all the wat to the top + 1
     //remember the top it 0 since the pixels count up from the top down
     line.setStart(float(getWidth()/2), float(getHeight()));
     line.setEnd(float(getWidth()/2), 1.f);
     
     //clip the line when it intersects with the closed path
-    line = pathCopy.getClippedLine(line, true);
+    line = path.getClippedLine(line, true);
+    
+    //draw the line for visual purposes (optional)
+    g.setColour (Colours::blue);
+    g.drawLine(line);
     
     //extract the y value at the entered x with line.getEndY()
-    //note this will be upsidown since the pixles count up from the top of the graph down
+    //note this will be upsidown since the pixles count up from the top of the graph down (DBG is just an example, **disabled)
     
     //DBG(line.getEndY());
     
     //==============================================================================
     
-    //create a stroked path from the cubic path we made and fill it
-    pathStroke.createStrokedPath(path, path);
-    g.fillPath(path);
+    //clear the path copy
+    path.clear();
     
     //draw some Ellipses to represent the nodes
     for(std::vector<Point<int>>::iterator it = nodes.begin(); it != nodes.end(); it++ )
@@ -212,37 +272,102 @@ void NthGraph::resized()
 
 }
 
-void NthGraph::multipointBezierCurve(const std::vector<Point<int>> &cp, Path &path)
+void NthGraph::multipointBezierCurve()
 {
-    //make some flotes to represent the mid point between two nodes
+
+    //This method updates the Bezeir curve for efficiency purposes only the curves that are changing are calculated
+    
+    //the start and end of most curves is the midpoint between 2 controle nodes
     float midx, midy;
+    int iBump;
     
-    //make a couple of points 0 and 1
-    Point<int> p0, p1;
+    //this represents the path being calculated
+    int i;
     
-    //clear the old path and reset it to the first node
-    path.clear();
-    path.startNewSubPath(cp[0].x, cp[0].y);
+    //the index at which the paths are no longer needed to be calculated
+    int end;
     
-    //itereate through the nodes starting at the second node and ending one before the last node
-    for(int i = 1; i < cp.size() - 2; i++)
+    //true if the final path must be calculated
+    bool runLastNode;
+    
+    bool removepath0 = false;
+    
+    
+    //there are several situations in which the calculation requires different starting conditions
+    if((nodes.size() == 6 && (draggingNodeNum == 3 || draggingNodeNum == 2 ))|| (nodes.size() == 7 && draggingNodeNum == 3) || (nodes.size() == 5 || nodes.size() == 4))
     {
-        //set point 1 to the current node and 0 to the next node
-        p0 = cp[i];
-        p1 = cp[i+1];
+        //this first one is for when to entire curve needs to be calcuated
+        //quadPaths[0]->clear();
+        i = 1;
+        iBump = 0;
+        midy = nodes[0].y;
+        midx = nodes[0].x;
+        end = int(quadPaths.size()) - 2;
+        runLastNode = true;
+
+    }
+    else if(draggingNodeNum > 2 && draggingNodeNum < int(nodes.size()) - 3)
+    {
+        //if neither the first or last three paths need to be calculated
+        i = draggingNodeNum - 1;
+        iBump = 0;
+        midx = float(nodes[i-1].x + nodes[i].x)/2.f;
+        midy = float(nodes[i-1].y + nodes[i].y)/2.f;
+        end = draggingNodeNum + 1;
+        runLastNode = false;
         
-        //find the x and y position on the graph that is half way between the two nodes, the middle of the dashed line
-        midx = float(p0.x + p1.x)/2.f;
-        midy = float(p0.y + p1.y)/2.f;
-        
-        //draw a quadratic curve from the current positon (cp[i-1], where the last curve ended)
-        //to the mid point just calculated and using the current node as the control point
-        path.quadraticTo(float(p0.x), float(p0.y), midx, midy);
+    }
+    else if(draggingNodeNum <= 2)
+    {
+        //if any of the first three nodes need to be calculated
+        //quadPaths[0]->clear();
+        removepath0 = true;
+        i = 1;
+        iBump = 0;
+        midx = nodes[0].x;
+        midy = nodes[0].y;
+        end = draggingNodeNum + 1;
+        runLastNode = false;
+    }
+    else if(draggingNodeNum >= int(nodes.size()) - 3)
+    {
+        //if any of the last three nodes need to be calculated
+        i = draggingNodeNum - 1;
+        iBump = 0;
+        midx = float(nodes[i-1].x + nodes[i].x)/2.f;
+        midy = float(nodes[i-1].y + nodes[i].y)/2.f;
+        end = int(quadPaths.size()) - 2;
+        runLastNode = true;
+    }
+    else
+    {
+        //this is just for safty, should never run
+        i = 1;
+        iBump = 0;
+        midy = nodes[0].y;
+        midx = nodes[0].x;
+        end = int(quadPaths.size()) - 2;
+        runLastNode = true;
     }
     
-    //for the last curve their is no middle point to draw to so just use the second to last node as our controle point
-    p0 = cp[cp.size() - 2];
-    p1 = cp[cp.size() - 1];
-    path.quadraticTo(float(p0.x), float(p0.y), float(p1.x), float(p1.y));
     
+    //itterate through the paths and perform the quadic calculation
+    for(; i <= end; i++)
+    {
+        quadPaths[i]->clear();
+        quadPaths[i]->startNewSubPath(midx, midy);
+        
+        midx = float(nodes[i+iBump].x + nodes[i+iBump+1].x)/2.f;
+        midy = float(nodes[i+iBump].y + nodes[i+iBump+1].y)/2.f;
+        
+        quadPaths[i]->quadraticTo(float(nodes[i+iBump].x), float(nodes[i+iBump].y), midx, midy);
+    }
+    
+    //special calculation if the last path needs to be calculated
+    if(runLastNode)
+    {
+        quadPaths[i]->clear();
+        quadPaths[i]->startNewSubPath(midx,midy);
+        quadPaths[i]->quadraticTo(float(nodes[nodes.size() - 2].x), float(nodes[nodes.size() - 2].y), float(nodes[nodes.size()-1].x), float(nodes[nodes.size()-1].y));
+    }
 }
